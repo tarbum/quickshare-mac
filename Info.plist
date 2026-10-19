@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleName</key>
+  <string>Quick Share</string>
+  <key>CFBundleDisplayName</key>
+  <string>Quick Share</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.quickshare.mac</string>
+  <key>CFBundleExecutable</key>
+  <string>QuickShareMac</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <key>CFBundleShortVersionString</key>
+  <string>1.0.3</string>
+  <key>CFBundleVersion</key>
+  <string>3</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>14.0</string>
+  <key>LSUIElement</key>
+  <true/>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSLocalNetworkUsageDescription</key>
+  <string>Quick Share discovers and receives files from nearby devices on your local network.</string>
+  <key>NSBonjourServices</key>
+  <array>
+    <string>_FC9F5ED42C8A._tcp</string>
+  </array>
+  <key>NSBluetoothAlwaysUsageDescription</key>
+  <string>Quick Share can use Bluetooth Low Energy to discover nearby devices.</string>
+  <key>NSLocationWhenInUseUsageDescription</key>
+  <string>Quick Share uses your location only to join a nearby device's Wi-Fi hotspot for direct transfers.</string>
+  <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
+  <string>Quick Share uses your location only to join a nearby device's Wi-Fi hotspot for direct transfers.</string>
+  <key>NSLocationUsageDescription</key>
+  <string>Quick Share uses your location only to join a nearby device's Wi-Fi hotspot for direct transfers.</string>
+  <key>NSServices</key>
+  <array>
+    <dict>
+      <key>NSMenuItem</key>
+      <dict>
+        <key>default</key>
+        <string>Send with Quick Share</string>
+      </dict>
+      <key>NSMessage</key>
+      <string>openFile</string>
+      <key>NSPortName</key>
+      <string>QuickShareMac</string>
+      <key>NSRequiredContext</key>
+      <dict>
+        <key>NSTextContent</key>
+        <string>FilePath</string>
+      </dict>
+      <key>NSSendTypes</key>
+      <array>
+        <string>public.file-url</string>
+      </array>
+    </dict>
+  </array>
+  <key>NSHumanReadableCopyright</key>
+  <string>Built on Google's Nearby Connections (Apache-2.0).</string>
+</dict>
+</plist>

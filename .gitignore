@@ -1,0 +1,9 @@
+.DS_Store
+
+# Build products
+.build/
+QuickShareMac.app/
+QuickShareMac.zip
+QuickShareMac.dmg
+AppIcon.iconset/
+icon_1024.png
