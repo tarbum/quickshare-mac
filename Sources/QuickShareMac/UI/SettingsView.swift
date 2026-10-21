@@ -25,7 +25,7 @@ struct SettingsView: View {
           Text("Used for advertising and connection setup.")
             .font(.caption)
             .foregroundStyle(.secondary)
-          Text("Wi-Fi LAN, Hotspot, and Direct upgrade changes apply after relaunch.")
+          Text("Changes restart advertising and apply to new connections.")
             .font(.caption)
             .foregroundStyle(.secondary)
         }
