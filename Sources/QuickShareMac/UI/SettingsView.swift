@@ -126,16 +126,6 @@ struct SettingsView: View {
             Text(error).foregroundStyle(.red)
           }
         }
-
-        Section("Protocol") {
-          LabeledContent("Service ID", value: "NearbySharing")
-          LabeledContent("mDNS", value: "_FC9F5ED42C8A._tcp")
-          LabeledContent(
-            "Transport",
-            value: service.transportDescription)
-          LabeledContent("Hotspot / Direct", value: "Client / join only")
-          LabeledContent("Visibility", value: "Everyone on this network")
-        }
       }
       .formStyle(.grouped)
       .tabItem { Label("General", systemImage: "gearshape") }
