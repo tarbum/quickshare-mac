@@ -1,5 +1,5 @@
 {
-  "originHash" : "6287ea5952c50f7d2ff3afa00238a4437f0c43ff818f4c68f91e61243201d610",
+  "originHash" : "b98898eb0d10a836513af5e546823cbf872edbc89cf1fdff60b4f0db431729f6",
   "pins" : [
     {
       "identity" : "abseil-cpp-swiftpm",
@@ -24,7 +24,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/tarbum/nearby.git",
       "state" : {
-        "revision" : "0736243f3176baa3542cc70591afc88da1409799"
+        "branch" : "debug-logging",
+        "revision" : "82af1bc5ad1c89f4c068cab529b929c8c70ec9e3"
       }
     },
     {

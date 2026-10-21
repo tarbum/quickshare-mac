@@ -74,8 +74,33 @@ QuickShareMac.zip
 QuickShareMac.dmg
 ```
 
-The Nearby Connections dependency is pinned to a specific commit of
-`tarbum/nearby`; SwiftPM fetches it automatically.
+The Nearby Connections dependency tracks the
+[`debug-logging`](https://github.com/tarbum/nearby/tree/debug-logging) branch of
+`tarbum/nearby`, which carries diagnostics patches to the transport (framework
+logs to `os_log`, bounded and serialized hotspot joins, chunk-size override).
+`./build_app.sh` refreshes it to the branch tip before building, so no sibling
+checkout is needed; `Package.resolved` records the revision the last build used.
+
+```sh
+git clone https://github.com/tarbum/quickshare-mac.git
+cd quickshare-mac && ./build_app.sh
+```
+
+## Diagnostics
+
+A rotating log is written to `~/Library/Logs/QuickShareMac/QuickShareMac.log`.
+It captures the app's activity list, per-transfer throughput (MB/s, per second),
+partial-transfer state, and the Nearby Connections framework's own logs
+(medium selection, Wi-Fi Direct/hotspot joins, scan results), which are
+otherwise sent to a stderr that GUI apps never see.
+
+From a terminal, the same framework logs are also visible in unified logging:
+
+```sh
+log stream --level debug --predicate 'subsystem == "com.google.nearby"'
+```
+
+**Settings → General → Diagnostics** reveals the file in Finder.
 
 ## Limitations
 

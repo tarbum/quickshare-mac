@@ -6,6 +6,10 @@ CONFIG="${CONFIG:-release}"
 export DEVELOPER_DIR="${DEVELOPER_DIR:-/Applications/Xcode-beta.app/Contents/Developer}"
 
 echo "Building QuickShareMac ($CONFIG)…"
+# Follow the nearby debug-logging branch (see Package.swift). Best effort: if
+# the network is unavailable, build against the pinned Package.resolved.
+swift package --package-path "$ROOT" update nearby ||
+  echo "warning: could not refresh nearby; using the pinned revision"
 swift build --package-path "$ROOT" -c "$CONFIG"
 
 BIN="$(swift build --package-path "$ROOT" -c "$CONFIG" --show-bin-path)/QuickShareMac"
