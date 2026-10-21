@@ -47,8 +47,8 @@ Download the latest DMG from
 
 To receive files, leave the app running in the menu bar.
 
-If you want it to start automatically, add it under
-**System Settings → General → Login Items**.
+If you want it to start automatically, enable **Launch at login** in Quick Share
+settings.
 
 ## Using Quick Share
 
