@@ -5,6 +5,7 @@ struct SettingsView: View {
   @ObservedObject var service: QuickShareService
   @ObservedObject private var trust = DeviceTrustStore.shared
   @ObservedObject private var updates = UpdateChecker.shared
+  @ObservedObject private var loginItem = LoginItem.shared
 
   var body: some View {
     TabView {
@@ -17,14 +18,33 @@ struct SettingsView: View {
           ))
         }
 
+        Section("Startup") {
+          Toggle("Launch at login", isOn: Binding(
+            get: { loginItem.isEnabled },
+            set: { loginItem.setEnabled($0) }
+          ))
+          if loginItem.needsApproval {
+            HStack {
+              Text("Approve Quick Share in System Settings > General > Login Items.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+              Button("Open Login Items") {
+                loginItem.openSystemSettings()
+              }
+            }
+          }
+          if let error = loginItem.lastError {
+            Text(error)
+              .font(.caption)
+              .foregroundStyle(.red)
+          }
+        }
+
         Section("Transports") {
           Toggle("Bluetooth LE", isOn: $service.bleEnabled)
           Toggle("Wi-Fi LAN", isOn: $service.wifiLanEnabled)
           Toggle("Wi-Fi Hotspot", isOn: $service.wifiHotspotEnabled)
           Toggle("Wi-Fi Direct", isOn: $service.wifiDirectEnabled)
-          Text("Used for advertising and connection setup.")
-            .font(.caption)
-            .foregroundStyle(.secondary)
           Text("Changes restart advertising and apply to new connections.")
             .font(.caption)
             .foregroundStyle(.secondary)
@@ -132,7 +152,10 @@ struct SettingsView: View {
       .tabItem { Label("Log", systemImage: "text.alignleft") }
     }
     .frame(width: 480, height: 420)
-    .onAppear { service.refreshNotificationAuthorization() }
+    .onAppear {
+      service.refreshNotificationAuthorization()
+      loginItem.refresh()
+    }
   }
 
   private var notificationStatus: String {
