@@ -15,7 +15,19 @@ struct SettingsView: View {
             get: { service.isReceiving },
             set: { $0 ? service.start() : service.stop() }
           ))
-          Toggle("Advertise over Bluetooth LE", isOn: $service.bleEnabled)
+        }
+
+        Section("Transports") {
+          Toggle("Bluetooth LE", isOn: $service.bleEnabled)
+          Toggle("Wi-Fi LAN", isOn: $service.wifiLanEnabled)
+          Toggle("Wi-Fi Hotspot", isOn: $service.wifiHotspotEnabled)
+          Toggle("Wi-Fi Direct", isOn: $service.wifiDirectEnabled)
+          Text("Used for advertising and connection setup.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
+          Text("Wi-Fi LAN, Hotspot, and Direct upgrade changes apply after relaunch.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
         }
 
         Section("Approval") {
@@ -100,9 +112,7 @@ struct SettingsView: View {
           LabeledContent("mDNS", value: "_FC9F5ED42C8A._tcp")
           LabeledContent(
             "Transport",
-            value: service.bleEnabled
-              ? "Wi-Fi LAN + BLE + Hotspot + Direct"
-              : "Wi-Fi LAN + Hotspot + Direct")
+            value: service.transportDescription)
           LabeledContent("Hotspot / Direct", value: "Client / join only")
           LabeledContent("Visibility", value: "Everyone on this network")
         }

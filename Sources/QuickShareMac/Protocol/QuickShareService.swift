@@ -43,20 +43,42 @@ final class QuickShareService: NSObject, ObservableObject {
   @Published var lastSendCompleted = false
   @Published var bleEnabled: Bool {
     didSet {
-      guard oldValue != bleEnabled else { return }
-      UserDefaults.standard.set(bleEnabled, forKey: Self.bleEnabledKey)
-      if isReceiving {
-        scheduleAdvertisingRestart()
-      }
+      transportChanged(bleEnabled, oldValue: oldValue, key: Self.bleEnabledKey)
+    }
+  }
+  @Published var wifiLanEnabled: Bool {
+    didSet {
+      transportChanged(wifiLanEnabled, oldValue: oldValue, key: Self.wifiLanEnabledKey)
+    }
+  }
+  @Published var wifiHotspotEnabled: Bool {
+    didSet {
+      transportChanged(
+        wifiHotspotEnabled, oldValue: oldValue, key: Self.wifiHotspotEnabledKey)
+    }
+  }
+  @Published var wifiDirectEnabled: Bool {
+    didSet {
+      transportChanged(
+        wifiDirectEnabled, oldValue: oldValue, key: Self.wifiDirectEnabledKey)
     }
   }
 
-  var wifiLanEnabled = true
-
   var allowSameNamePeers = false
 
+  var transportDescription: String {
+    var parts: [String] = []
+    if wifiLanEnabled { parts.append("Wi-Fi LAN") }
+    if bleEnabled { parts.append("BLE") }
+    if wifiHotspotEnabled { parts.append("Hotspot") }
+    if wifiDirectEnabled { parts.append("Direct") }
+    return parts.isEmpty ? "None" : parts.joined(separator: " + ")
+  }
+
   private var transferMediums: Set<Medium> {
-    var mediums: Set<Medium> = [.wifiHotspot, .wifiDirect]
+    var mediums: Set<Medium> = []
+    if wifiHotspotEnabled { mediums.insert(.wifiHotspot) }
+    if wifiDirectEnabled { mediums.insert(.wifiDirect) }
     if wifiLanEnabled { mediums.insert(.wifiLAN) }
     if bleEnabled { mediums.insert(.ble) }
     return mediums
@@ -79,6 +101,9 @@ final class QuickShareService: NSObject, ObservableObject {
 
   private static let deviceNameKey = "QuickShareMac.deviceName"
   private static let bleEnabledKey = "QuickShareMac.bleEnabled"
+  private static let wifiLanEnabledKey = "QuickShareMac.wifiLanEnabled"
+  private static let wifiHotspotEnabledKey = "QuickShareMac.wifiHotspotEnabled"
+  private static let wifiDirectEnabledKey = "QuickShareMac.wifiDirectEnabled"
 
   private var advertisingRestartWorkItem: DispatchWorkItem?
   private var advertisingGeneration = 0
@@ -91,10 +116,63 @@ final class QuickShareService: NSObject, ObservableObject {
       ?? "Mac"
     self.bleEnabled =
       UserDefaults.standard.object(forKey: Self.bleEnabledKey) as? Bool ?? true
+    let storedLan =
+      UserDefaults.standard.object(forKey: Self.wifiLanEnabledKey) as? Bool ?? true
+    let lanEnabled =
+      CommandLine.arguments.contains("--no-wifi-lan") ? false : storedLan
+    let hotspotEnabled =
+      UserDefaults.standard.object(forKey: Self.wifiHotspotEnabledKey) as? Bool ?? true
+    let directEnabled =
+      UserDefaults.standard.object(forKey: Self.wifiDirectEnabledKey) as? Bool ?? true
+    self.wifiLanEnabled = lanEnabled
+    self.wifiHotspotEnabled = hotspotEnabled
+    self.wifiDirectEnabled = directEnabled
+    if lanEnabled {
+      unsetenv("QUICKSHARE_DISABLE_WIFI_LAN_UPGRADE")
+    } else {
+      setenv("QUICKSHARE_DISABLE_WIFI_LAN_UPGRADE", "1", 1)
+    }
+    if hotspotEnabled {
+      unsetenv("QUICKSHARE_DISABLE_WIFI_HOTSPOT_UPGRADE")
+    } else {
+      setenv("QUICKSHARE_DISABLE_WIFI_HOTSPOT_UPGRADE", "1", 1)
+    }
+    if directEnabled {
+      unsetenv("QUICKSHARE_DISABLE_WIFI_DIRECT_UPGRADE")
+    } else {
+      setenv("QUICKSHARE_DISABLE_WIFI_DIRECT_UPGRADE", "1", 1)
+    }
     super.init()
     connectionManager.delegate = self
     advertiser.delegate = self
     discoverer.delegate = self
+  }
+
+  private func transportChanged(_ enabled: Bool, oldValue: Bool, key: String) {
+    guard oldValue != enabled else { return }
+    UserDefaults.standard.set(enabled, forKey: key)
+    if key == Self.wifiLanEnabledKey {
+      if enabled {
+        unsetenv("QUICKSHARE_DISABLE_WIFI_LAN_UPGRADE")
+      } else {
+        setenv("QUICKSHARE_DISABLE_WIFI_LAN_UPGRADE", "1", 1)
+      }
+    } else if key == Self.wifiHotspotEnabledKey {
+      if enabled {
+        unsetenv("QUICKSHARE_DISABLE_WIFI_HOTSPOT_UPGRADE")
+      } else {
+        setenv("QUICKSHARE_DISABLE_WIFI_HOTSPOT_UPGRADE", "1", 1)
+      }
+    } else if key == Self.wifiDirectEnabledKey {
+      if enabled {
+        unsetenv("QUICKSHARE_DISABLE_WIFI_DIRECT_UPGRADE")
+      } else {
+        setenv("QUICKSHARE_DISABLE_WIFI_DIRECT_UPGRADE", "1", 1)
+      }
+    }
+    if isReceiving {
+      scheduleAdvertisingRestart()
+    }
   }
 
   func start() {
@@ -328,6 +406,11 @@ final class QuickShareService: NSObject, ObservableObject {
 
   func startDiscovery() {
     guard !isDiscovering else { return }
+    guard !transferMediums.isEmpty else {
+      lastError = "Enable at least one transport."
+      appendLog("cannot discover: no transports enabled")
+      return
+    }
     prepareWiFiForDirectTransfers()
     peers = []
     isDiscovering = true
@@ -463,14 +546,19 @@ final class QuickShareService: NSObject, ObservableObject {
 
   private func startAdvertising() {
     guard !isStartingAdvertising else { return }
+    guard !transferMediums.isEmpty else {
+      isReceiving = false
+      lastError = "Enable at least one transport."
+      statusMessage = "No transports enabled"
+      appendLog("cannot advertise: no transports enabled")
+      return
+    }
     prepareWiFiForDirectTransfers()
     isStartingAdvertising = true
     let context = QuickShareAdvertisement.make(
       deviceName: deviceName, deviceType: .laptop)
     let mediums = transferMediums
-    let transport = mediums.contains(.wifiLAN)
-      ? "Wi-Fi LAN + BLE + Hotspot + Direct"
-      : "BLE + Hotspot + Direct"
+    let transport = transportDescription
 
     statusMessage = "Advertising as \(deviceName)…"
     advertiser.startAdvertising(using: context, mediums: mediums) { [weak self] error in

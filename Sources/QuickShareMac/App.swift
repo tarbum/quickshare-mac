@@ -4,14 +4,7 @@ import AppKit
 @main
 struct QuickShareMacApp: App {
   @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-  @StateObject private var service: QuickShareService
-
-  init() {
-    if CommandLine.arguments.contains("--no-wifi-lan") {
-      setenv("QUICKSHARE_DISABLE_WIFI_LAN_UPGRADE", "1", 1)
-    }
-    _service = StateObject(wrappedValue: QuickShareService.shared)
-  }
+  @StateObject private var service = QuickShareService.shared
 
   var body: some Scene {
     MenuBarExtra {
@@ -38,9 +31,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     NSApp.servicesProvider = ServicesProvider.shared
     NSUpdateDynamicServices()
     let args = CommandLine.arguments
-    if args.contains("--no-wifi-lan") {
-      QuickShareService.shared.wifiLanEnabled = false
-    }
     if args.contains("--scan-wifi") {
       HotspotDiagnostics.scan()
       return
