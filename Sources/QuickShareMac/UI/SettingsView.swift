@@ -5,6 +5,7 @@ struct SettingsView: View {
   @ObservedObject var service: QuickShareService
   @ObservedObject private var trust = DeviceTrustStore.shared
   @ObservedObject private var updates = UpdateChecker.shared
+  @State private var chunkKiB = TransferTuning.chunkSizeKiB
 
   var body: some View {
     TabView {
@@ -95,6 +96,41 @@ struct SettingsView: View {
           }
         }
 
+        Section("Diagnostics") {
+          LabeledContent("Log file") {
+            Text(Diagnostics.logURL.path)
+              .font(.caption)
+              .textSelection(.enabled)
+              .lineLimit(1)
+              .truncationMode(.middle)
+          }
+          HStack {
+            Button("Reveal Log in Finder") { Diagnostics.revealLog() }
+            Button("Copy Path") {
+              NSPasteboard.general.clearContents()
+              NSPasteboard.general.setString(Diagnostics.logURL.path, forType: .string)
+            }
+          }
+          Text(
+            "Includes framework logs (Wi-Fi scan/join attempts, medium upgrades) and per-transfer throughput."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+          Picker("Payload chunk size", selection: $chunkKiB) {
+            ForEach(TransferTuning.chunkSizeChoices, id: \.self) { kib in
+              Text(TransferTuning.label(for: kib)).tag(kib)
+            }
+          }
+          .onChange(of: chunkKiB) { _, value in
+            TransferTuning.chunkSizeKiB = value
+          }
+          Text(
+            "Larger chunks cut per-frame overhead on Wi-Fi (LAN, hotspot, direct); BLE is unaffected. Applies to new connections. Frames stay under the 1 MiB peer read limit."
+          )
+          .font(.caption)
+          .foregroundStyle(.secondary)
+        }
+
         Section("Protocol") {
           LabeledContent("Service ID", value: "NearbySharing")
           LabeledContent("mDNS", value: "_FC9F5ED42C8A._tcp")
@@ -116,6 +152,10 @@ struct SettingsView: View {
             .font(.system(.caption, design: .monospaced))
             .textSelection(.enabled)
             .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        HStack {
+          Button("Reveal Full Log") { Diagnostics.revealLog() }
+          Spacer()
         }
       }
       .padding()
