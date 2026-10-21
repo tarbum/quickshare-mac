@@ -328,6 +328,7 @@ final class QuickShareService: NSObject, ObservableObject {
 
   func startDiscovery() {
     guard !isDiscovering else { return }
+    prepareWiFiForDirectTransfers()
     peers = []
     isDiscovering = true
     discoverer.startDiscovery(mediums: transferMediums) { [weak self] error in
@@ -445,8 +446,24 @@ final class QuickShareService: NSObject, ObservableObject {
     }
   }
 
+  private func prepareWiFiForDirectTransfers() {
+    guard transferMediums.contains(.wifiDirect) || transferMediums.contains(.wifiHotspot)
+    else { return }
+    switch WiFiRadio.ensurePoweredOn() {
+    case .alreadyOn, .unavailable:
+      break
+    case .turnedOn:
+      appendLog("powered on the Wi-Fi radio for direct transfers")
+    case .failed(let reason):
+      appendLog(
+        "could not power on the Wi-Fi radio: \(reason); direct transfers may fall back to Bluetooth"
+      )
+    }
+  }
+
   private func startAdvertising() {
     guard !isStartingAdvertising else { return }
+    prepareWiFiForDirectTransfers()
     isStartingAdvertising = true
     let context = QuickShareAdvertisement.make(
       deviceName: deviceName, deviceType: .laptop)
