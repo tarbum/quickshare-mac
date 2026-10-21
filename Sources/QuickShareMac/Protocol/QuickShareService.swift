@@ -395,8 +395,17 @@ final class QuickShareService: NSObject, ObservableObject {
   private func sendOutgoingPayloads(_ transfer: OutgoingTransfer, to endpointID: EndpointID) {
     guard !transfer.startedPayloads else { return }
     transfer.startedPayloads = true
+    transfer.startedAt = Date()
+    let total = transfer.files.reduce(Int64(0)) { $0 + $1.size }
+    Diagnostics.log(
+      "tx start \(transfer.files.count) file(s), \(formatBytes(total)) to \(transfer.peer.name) (\(endpointID))"
+    )
     for file in transfer.files {
+      transfer.payloadStartedAt[file.payloadID] = Date()
       appendLog("sending \(file.name) (\(file.size) bytes)")
+      Diagnostics.log(
+        "tx payload \"\(file.name)\" payload=\(file.payloadID) \(formatBytes(file.size)) type=\(file.mimeType)"
+      )
       _ = connectionManager.sendResource(
         at: file.url, withName: file.name, to: [endpointID], id: file.payloadID
       ) { [weak self] error in
@@ -456,6 +465,8 @@ final class QuickShareService: NSObject, ObservableObject {
       : "BLE + Hotspot + Direct"
 
     statusMessage = "Advertising as \(deviceName)…"
+    Diagnostics.log(
+      "advertise device=\"\(deviceName)\" type=laptop mediums=\(mediums.map { String(describing: $0) }.sorted())")
     advertiser.startAdvertising(using: context, mediums: mediums) { [weak self] error in
       DispatchQueue.main.async {
         guard let self = self else { return }
@@ -672,6 +683,8 @@ final class QuickShareService: NSObject, ObservableObject {
 
       case .wifiCredentials:
         guard let data = session.payloadData[payloadID] else { return }
+        Diagnostics.log(
+          "WIFI_CREDENTIALS payload=\(payloadID) \(data.count)B — peer is asking us to join its hotspot")
         let destination = DownloadNaming.uniqueURL(
           in: directory, preferredName: "Wi-Fi credentials.txt")
         try data.write(to: destination)
@@ -704,6 +717,16 @@ final class QuickShareService: NSObject, ObservableObject {
     let line = "\(DateFormatter.localizedString(from: Date(), dateStyle: .none, timeStyle: .medium))  \(message)"
     print("[QuickShare] \(line)")
     fflush(stdout)
+    Diagnostics.event(message)
+    Diagnostics.mirror("[QuickShare] \(line)")
+    log.append(line)
+    if log.count > 200 {
+      log.removeFirst(log.count - 200)
+    }
+  }
+
+  /// Appends a pre-formatted line (used by `Diagnostics.log(_:verboseUI:)`).
+  func appendToActivity(_ line: String) {
     log.append(line)
     if log.count > 200 {
       log.removeFirst(log.count - 200)
@@ -808,6 +831,11 @@ extension QuickShareService: ConnectionManagerDelegate {
 
     case .disconnected:
       appendLog("disconnected: \(endpointID)")
+      if let session = sessions[endpointID] {
+        for payloadID in session.resourceURLs.keys where !session.completedPayloads.contains(payloadID) {
+          logPartialTransfer(session, payloadID: payloadID, reason: "peer disconnected")
+        }
+      }
       cancelScheduledDisconnect(endpointID)
       connectedEndpoints.remove(endpointID)
       cancelPendingApproval(endpointID: endpointID, reason: "peer disconnected")
@@ -850,8 +878,12 @@ extension QuickShareService: ConnectionManagerDelegate {
 
     guard let frame = try? FrameCodec.decode(data) else {
       appendLog("ignored \(data.count)-byte payload (id \(payloadID))")
+      Diagnostics.log(
+        "frame DECODE FAILED \(data.count)B payload=\(payloadID) from \(endpointID)")
       return
     }
+    Diagnostics.log(
+      "frame \(frame.v1.type) \(data.count)B payload=\(payloadID) from \(endpointID)")
     handle(frame: frame, from: endpointID)
   }
 
@@ -871,7 +903,12 @@ extension QuickShareService: ConnectionManagerDelegate {
     guard let session = sessions[endpointID] else { return }
     session.resourceURLs[payloadID] = localURL
     session.resourceNames[payloadID] = name
+    session.payloadStartedAt[payloadID] = Date()
+    let expected = session.attachments[payloadID]?.size ?? -1
     appendLog("receiving resource \(name) (id \(payloadID))")
+    Diagnostics.log(
+      "rx start \"\(name)\" payload=\(payloadID) expected=\(formatBytes(expected)) temp=\(localURL.path)"
+    )
   }
 
   func connectionManager(
@@ -885,9 +922,19 @@ extension QuickShareService: ConnectionManagerDelegate {
       case .success:
         outgoing.completedPayloads.insert(payloadID)
         appendLog("sent \(file.name)")
+        logTransferFinished(
+          name: file.name, payloadID: payloadID, bytes: file.size,
+          startedAt: outgoing.payloadStartedAt[payloadID], direction: "tx")
         if outgoing.completedPayloads.count == outgoing.files.count {
           statusMessage = "Sent to \(outgoing.peer.name)"
           appendLog("transfer complete")
+          if let startedAt = outgoing.startedAt {
+            let elapsed = Date().timeIntervalSince(startedAt)
+            let total = outgoing.files.reduce(Int64(0)) { $0 + $1.size }
+            Diagnostics.log(
+              "tx complete \(outgoing.files.count) file(s), \(formatBytes(total)) in "
+                + String(format: "%.1fs (%.2f MB/s)", elapsed, Double(total) / elapsed / 1_048_576))
+          }
           lastSendCompleted = true
 
           scheduleDisconnect(
@@ -900,16 +947,22 @@ extension QuickShareService: ConnectionManagerDelegate {
         }
       case .failure:
         appendLog("failed to send \(file.name)")
+        Diagnostics.log(
+          "tx FAILED \"\(file.name)\" payload=\(payloadID) after \(formatBytes(file.size))")
         lastError = "Failed to send \(file.name)"
         scheduleDisconnect(
           endpointID: endpointID, after: 0, reason: "send failed")
       case .canceled:
         appendLog("sending \(file.name) cancelled")
+        Diagnostics.log("tx CANCELED \"\(file.name)\" payload=\(payloadID)")
         scheduleDisconnect(
           endpointID: endpointID, after: 0, reason: "send cancelled")
       case .progress(let progress):
         statusMessage =
           "Sending \(file.name)… \(Int(progress.fractionCompleted * 100))%"
+        logProgress(
+          progress, name: file.name, payloadID: payloadID,
+          samplers: &outgoing.progressSamplers, direction: "tx")
       }
       return
     }
@@ -919,13 +972,21 @@ extension QuickShareService: ConnectionManagerDelegate {
     switch update {
     case .success:
       finishAttachment(session: session, payloadID: payloadID, endpointID: endpointID)
+      let name = session.resourceNames[payloadID]
+        ?? session.attachments[payloadID]?.name ?? "payload \(payloadID)"
+      let bytes = session.attachments[payloadID]?.size ?? -1
+      logTransferFinished(
+        name: name, payloadID: payloadID, bytes: bytes,
+        startedAt: session.payloadStartedAt[payloadID], direction: "rx")
     case .canceled:
       appendLog("transfer cancelled for payload \(payloadID)")
+      logPartialTransfer(session, payloadID: payloadID, reason: "canceled")
       sessions.removeValue(forKey: endpointID)
       scheduleDisconnect(
         endpointID: endpointID, after: 0, reason: "transfer cancelled")
     case .failure:
       appendLog("transfer failed for payload \(payloadID)")
+      logPartialTransfer(session, payloadID: payloadID, reason: "failed")
       lastError = "Transfer failed"
       sessions.removeValue(forKey: endpointID)
       scheduleDisconnect(
@@ -934,7 +995,52 @@ extension QuickShareService: ConnectionManagerDelegate {
       if let attachment = session.attachments[payloadID] {
         statusMessage = "Receiving \(attachment.name)… \(Int(progress.fractionCompleted * 100))%"
       }
+      let name = session.attachments[payloadID]?.name ?? "payload \(payloadID)"
+      logProgress(
+        progress, name: name, payloadID: payloadID,
+        samplers: &session.progressSamplers, direction: "rx")
     }
+  }
+
+  /// Throttled to one line per second so a fast transfer cannot flood the log.
+  private func logProgress(
+    _ progress: Progress, name: String, payloadID: PayloadID,
+    samplers: inout [PayloadID: ProgressSampler], direction: String
+  ) {
+    let sampler = samplers[payloadID] ?? {
+      let sampler = ProgressSampler()
+      samplers[payloadID] = sampler
+      return sampler
+    }()
+    guard let rate = sampler.sample(bytes: progress.completedUnitCount) else { return }
+    Diagnostics.log(
+      "\(direction) \"\(name)\" \(formatBytes(progress.completedUnitCount)) / "
+        + "\(formatBytes(progress.totalUnitCount)) "
+        + "(\(Int(progress.fractionCompleted * 100))%) "
+        + String(format: "%.2f MB/s", rate))
+  }
+
+  private func logTransferFinished(
+    name: String, payloadID: PayloadID, bytes: Int64, startedAt: Date?, direction: String
+  ) {
+    guard let startedAt else { return }
+    let elapsed = max(Date().timeIntervalSince(startedAt), 0.001)
+    let actual = bytes > 0 ? bytes : 0
+    Diagnostics.log(
+      "\(direction) done \"\(name)\" payload=\(payloadID) \(formatBytes(actual)) in "
+        + String(format: "%.1fs (%.2f MB/s)", elapsed, Double(actual) / elapsed / 1_048_576))
+  }
+
+  /// Records where an interrupted download was left, so it can be recovered.
+  private func logPartialTransfer(
+    _ session: TransferSession, payloadID: PayloadID, reason: String
+  ) {
+    guard let url = session.resourceURLs[payloadID] else { return }
+    let size = (try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize).flatMap { Int64($0) } ?? 0
+    let expected = session.attachments[payloadID]?.size ?? -1
+    Diagnostics.log(
+      "PARTIAL \"\(url.lastPathComponent)\" payload=\(payloadID) \(reason): "
+        + "\(formatBytes(size)) of \(formatBytes(expected)) kept at \(url.path)")
   }
 }
 

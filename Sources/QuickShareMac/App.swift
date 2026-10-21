@@ -26,6 +26,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
   private var testSender: SelfTestSender?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    Diagnostics.start()
     LocationPermission.shared.request()
     QuickShareService.shared.configureNotifications()
     NSApp.servicesProvider = ServicesProvider.shared

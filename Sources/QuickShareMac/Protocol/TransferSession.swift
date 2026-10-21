@@ -27,6 +27,10 @@ final class TransferSession {
   var resourceURLs: [Int64: URL] = [:]
   var resourceNames: [Int64: String] = [:]
   var completedPayloads: Set<Int64> = []
+  /// Wall-clock time each payload started arriving, for throughput reporting.
+  var payloadStartedAt: [Int64: Date] = [:]
+  /// Throttled throughput sampler per payload.
+  var progressSamplers: [Int64: ProgressSampler] = [:]
   var introduced = false
   var approved = false
   var createdAt = Date()

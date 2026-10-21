@@ -45,6 +45,11 @@ final class OutgoingTransfer {
   var sentIntroduction = false
   var completedPayloads: Set<Int64> = []
   var startedPayloads = false
+  /// Set when payload bytes start flowing, used for throughput reporting.
+  var startedAt: Date?
+  var payloadStartedAt: [Int64: Date] = [:]
+  /// Throttled throughput sampler per payload.
+  var progressSamplers: [Int64: ProgressSampler] = [:]
 
   init(peer: DiscoveredPeer, files: [OutgoingFile]) {
     self.peer = peer
