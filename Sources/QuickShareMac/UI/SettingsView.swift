@@ -11,7 +11,11 @@ struct SettingsView: View {
     TabView {
       Form {
         Section("Device") {
-          TextField("Device name", text: $service.deviceName)
+          TextField("Visible name", text: $service.deviceName)
+            .textFieldStyle(.roundedBorder)
+          Text("Shown to nearby devices. Click the field to edit it.")
+            .font(.caption)
+            .foregroundStyle(.secondary)
           Toggle("Receive from nearby devices", isOn: Binding(
             get: { service.isReceiving },
             set: { $0 ? service.start() : service.stop() }
@@ -120,12 +124,6 @@ struct SettingsView: View {
           }
         }
 
-        Section("Status") {
-          Text(service.statusMessage)
-          if let error = service.lastError {
-            Text(error).foregroundStyle(.red)
-          }
-        }
       }
       .formStyle(.grouped)
       .tabItem { Label("General", systemImage: "gearshape") }
