@@ -13,7 +13,7 @@ let package = Package(
     .package(
       name: "NearbyConnections",
       url: "https://github.com/tarbum/nearby.git",
-      branch: "main"
+      branch: "mac-untested"
     ),
     .package(url: "https://github.com/apple/swift-protobuf.git", from: "1.39.0"),
   ],
