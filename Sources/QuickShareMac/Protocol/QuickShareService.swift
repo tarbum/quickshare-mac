@@ -142,6 +142,9 @@ final class QuickShareService: NSObject, ObservableObject {
     } else {
       setenv("QUICKSHARE_DISABLE_WIFI_DIRECT_UPGRADE", "1", 1)
     }
+    if CommandLine.arguments.contains("--wifi-direct") {
+      setenv("QUICKSHARE_DISABLE_WIFI_LAN_UPGRADE", "1", 1)
+    }
     super.init()
     connectionManager.delegate = self
     advertiser.delegate = self
